@@ -1,5 +1,6 @@
 package fr.mixit;
 
+import com.opencsv.CSVWriter;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
@@ -32,7 +33,8 @@ public class Main {
     public static final String API_FORMATS = "/formats";
     public static final String API_ADMINS = "/admins";
     public static final String API_RATES_BY_ID = "/rates/proposals/826";
-    public static final String API_USERS_ME = "/users/me";
+    public static final String SCRAPED_FOLDER = "./scraped/";
+    private static final String SEP = "\t";
 
 
     private static ObjectMapper mapper = new ObjectMapper();
@@ -42,21 +44,7 @@ public class Main {
     public static void main(String[] args) throws IOException {
         apiToken = args[0];
 
-
-        Map<String, String> urls = new HashMap<String, String>();
-        // urls.put("tracks", API_TRACKS);
-        //urls.put("format", API_FORMATS);
-        //urls.put("tracks", ADMIN_SESSIONS);
-        urls.put("rates", API_RATES);
-        //urls.put("speakers", API_TRACKS_SPEAKERS);
-        //urls.put("admins", API_ADMINS);
-
-        System.out.println("hello");
-
-        for (Map.Entry<String, String> stringStringEntry : urls.entrySet()) {
-            scrap(stringStringEntry.getKey(), stringStringEntry.getValue());
-        }
-
+        scrap("rates", API_RATES);
 
         Map<Integer, String> tracks = getTracks(scrap("tracks", API_TRACKS));
         Map<Integer, String> formats = getFormats(scrap("formats", API_FORMATS));
@@ -69,7 +57,7 @@ public class Main {
             completeSession(s, scrap("session-" + id, ADMIN_SESSIONS + "/" + id), tracks, formats);
         }
 
-        System.out.println("done");
+        exportAsCSV("cfp", sessions, tracks, formats);
     }
 
     private static Map<Integer, Session> getSessions(String sessions) throws IOException {
@@ -84,7 +72,7 @@ public class Main {
             String voters = StreamSupport.stream(
                     Spliterators.spliteratorUnknownSize(elem.get("voteUsersEmail").getElements(), Spliterator.ORDERED),
                     false)
-                    .map(e -> e.getTextValue())
+                    .map(JsonNode::getTextValue)
                     .collect(Collectors.joining(", "));
             session.setVoters(voters);
 
@@ -164,5 +152,45 @@ public class Main {
         fw.close();
 
         return resultStr;
+    }
+
+
+    private static void exportAsCSV(String filename, Map<Integer, Session> sessions, Map<Integer, String> tracks, Map<Integer, String> formats) throws IOException {
+        CSVWriter writer = new CSVWriter(new FileWriter(SCRAPED_FOLDER+filename + ".csv"), '\t');
+
+
+        String[] entries = {"id", "name", "language", "format", "track", "description",
+                "references", "difficulty", "speakerName", "speakerEmail",
+                "speakerLanguage", "cospeakers", "mean", "voters"};
+        writer.writeNext(entries);
+
+        sessions.keySet().stream()
+                .sorted(Comparator.naturalOrder())
+
+                .forEach(key ->
+                        {
+                            Session s = sessions.get(key);
+                            String[] nextLine =
+                                    {key+"",
+                                    s.getName(),
+                                    s.getLanguage(),
+                                    s.getFormat(),
+                                    s.getTrack(),
+                                    s.getDescription(),
+                                    s.getReferences(),
+                                    s.getDifficulty(),
+                                    s.getSpeakerName(),
+                                    s.getSpeakerEmail(),
+                                    s.getSpeakerLanguage(),
+                                    s.getCospeakers(),
+                                    s.getMean(),
+                                    s.getVoters()};
+                            writer.writeNext(nextLine);
+                        }
+
+                );
+
+        writer.close();
+
     }
 }
