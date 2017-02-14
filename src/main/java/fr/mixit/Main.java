@@ -97,7 +97,17 @@ public class Main {
         session.setSpeakerName(e.getSpeaker("firstname") + " " + e.getSpeaker("lastname"));
         session.setSpeakerEmail(e.getSpeaker("email"));
         session.setSpeakerLanguage(e.getSpeaker("language"));
-        session.setCospeakers(e.get("cospeakers"));
+
+
+
+        Iterator<JsonNode> cospeakers = rootNode.get("cospeakers").getElements();
+        String cospeakerEmail = StreamSupport.stream(
+                Spliterators.spliteratorUnknownSize(cospeakers, Spliterator.ORDERED),
+                false)
+                .map(cs -> cs.get("email").getTextValue())
+                .collect(Collectors.joining(", "));
+
+        session.setCospeakers(cospeakerEmail);
     }
 
 
