@@ -44,7 +44,7 @@ public class Main {
     public static void main(String[] args) throws IOException {
         apiToken = args[0];
 
-        scrap("rates", API_RATES);
+        Map<Integer, Map<String, Integer>> rates = toRatesTable(scrap("rates", API_RATES));
 
         Map<Integer, String> tracks = getTracks(scrap("tracks", API_TRACKS));
         Map<Integer, String> formats = getFormats(scrap("formats", API_FORMATS));
@@ -54,10 +54,41 @@ public class Main {
 
         for (Integer id : sessions.keySet()) {
             Session s = sessions.get(id);
-            completeSession(s, scrap("session-" + id, ADMIN_SESSIONS + "/" + id), tracks, formats);
+            String sessionJson = scrap("session-" + id, ADMIN_SESSIONS + "/" + id);
+            String sessionCommentsJson = scrap("session-" + id + "-comments", ADMIN_SESSIONS + "/" + id + "/comments");
+            completeSession(s, sessionJson, sessionCommentsJson, rates.get(id), tracks, formats);
         }
 
         exportAsCSV("cfp", sessions, tracks, formats);
+    }
+
+    private static Map<Integer, Map<String, Integer>> toRatesTable(String ratesStr) throws IOException {
+        //  sessionId    email   rate
+        Map<Integer, Map<String, Integer>> result = new HashMap<>();
+
+        JsonNode rates = mapper.readValue(ratesStr, JsonNode.class);
+
+        Iterator<JsonNode> jsonNodeIterator = rates.getElements();
+        while (jsonNodeIterator.hasNext()) {
+            JsonNode jsonNode = jsonNodeIterator.next();
+
+            int sessionsId = jsonNode.get("talkId").getIntValue();
+            Integer rate = jsonNode.get("rate").getIntValue();
+
+            if (rate == 0) {
+                rate = null;
+            }
+
+            String email = jsonNode.get("user").get("email").getTextValue();
+
+            Map<String, Integer> stringIntegerMap = result.get(sessionsId);
+            if (stringIntegerMap == null) {
+                stringIntegerMap = new HashMap<>();
+            }
+            stringIntegerMap.put(email, rate);
+            result.put(sessionsId, stringIntegerMap);
+        }
+        return result;
     }
 
     private static Map<Integer, Session> getSessions(String sessions) throws IOException {
@@ -82,7 +113,7 @@ public class Main {
         return result;
     }
 
-    private static void completeSession(Session session, String sessionJson, Map<Integer, String> tracks, Map<Integer, String> formats) throws IOException {
+    private static void completeSession(Session session, String sessionJson, String sessionCommentsJson, Map<String, Integer> rates, Map<Integer, String> tracks, Map<Integer, String> formats) throws IOException {
         JsonNode rootNode = mapper.readValue(sessionJson, JsonNode.class);
 
         TextElem e = new TextElem(rootNode, formats, tracks);
@@ -93,12 +124,12 @@ public class Main {
         session.setTrack(e.getTrack("trackId"));
         session.setDescription(e.get("description"));
         session.setReferences(e.get("references"));
-        session.setDifficulty(e.get("difficulty"));
+        session.setDifficulty(e.getInt("difficulty"));
         session.setSpeakerName(e.getSpeaker("firstname") + " " + e.getSpeaker("lastname"));
         session.setSpeakerEmail(e.getSpeaker("email"));
         session.setSpeakerLanguage(e.getSpeaker("language"));
-
-
+        session.setRates(rates);
+        session.setComments(commentsToString(sessionCommentsJson));
 
         Iterator<JsonNode> cospeakers = rootNode.get("cospeakers").getElements();
         String cospeakerEmail = StreamSupport.stream(
@@ -108,6 +139,23 @@ public class Main {
                 .collect(Collectors.joining(", "));
 
         session.setCospeakers(cospeakerEmail);
+    }
+
+    private static Map<String, String> commentsToString(String sessionCommentsJson) throws IOException {
+        //  email
+        Map<String, String> commentsByUser = new HashMap<>();
+
+        JsonNode comments = mapper.readValue(sessionCommentsJson, JsonNode.class);
+        Iterator<JsonNode> jsonNodeIterator = comments.getElements();
+        while (jsonNodeIterator.hasNext()) {
+            JsonNode jsonNode = jsonNodeIterator.next();
+
+            commentsByUser.put(
+                    jsonNode.get("user").get("email").getTextValue(),
+                    jsonNode.get("comment").getTextValue());
+        }
+
+        return commentsByUser;
     }
 
 
@@ -166,7 +214,7 @@ public class Main {
 
 
     private static void exportAsCSV(String filename, Map<Integer, Session> sessions, Map<Integer, String> tracks, Map<Integer, String> formats) throws IOException {
-        CSVWriter writer = new CSVWriter(new FileWriter(SCRAPED_FOLDER+filename + ".csv"), '\t');
+        CSVWriter writer = new CSVWriter(new FileWriter(SCRAPED_FOLDER + filename + ".csv"), '\t');
 
 
         String[] entries = {"id", "name", "language", "format", "track", "description",
@@ -181,20 +229,20 @@ public class Main {
                         {
                             Session s = sessions.get(key);
                             String[] nextLine =
-                                    {key+"",
-                                    s.getName(),
-                                    s.getLanguage(),
-                                    s.getFormat(),
-                                    s.getTrack(),
-                                    s.getDescription(),
-                                    s.getReferences(),
-                                    s.getDifficulty(),
-                                    s.getSpeakerName(),
-                                    s.getSpeakerEmail(),
-                                    s.getSpeakerLanguage(),
-                                    s.getCospeakers(),
-                                    s.getMean(),
-                                    s.getVoters()};
+                                    {key + "",
+                                            s.getName(),
+                                            s.getLanguage(),
+                                            s.getFormat(),
+                                            s.getTrack(),
+                                            s.getDescription(),
+                                            s.getReferences(),
+                                            s.getDifficulty().toString(),
+                                            s.getSpeakerName(),
+                                            s.getSpeakerEmail(),
+                                            s.getSpeakerLanguage(),
+                                            s.getCospeakers(),
+                                            s.getMean(),
+                                            s.getVoters()};
                             writer.writeNext(nextLine);
                         }
 

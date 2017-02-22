@@ -23,6 +23,9 @@ public class TextElem {
     public String get(String name) {
         return         jsonElem.get(name).getTextValue();
     }
+    public Integer getInt(String name) {
+        return         jsonElem.get(name).getIntValue();
+    }
 
     public String getFormat(String format) {
         int formatId = jsonElem .get(format).getIntValue();

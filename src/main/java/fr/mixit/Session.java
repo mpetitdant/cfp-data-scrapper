@@ -1,5 +1,7 @@
 package fr.mixit;
 
+import java.util.Map;
+
 /**
  * @author mpetitdant
  *         Date: 08/02/17
@@ -11,13 +13,15 @@ public class Session {
     private String track;
     private String description;
     private String references;
-    private String difficulty;
+    private Integer difficulty;
     private String speakerName;
     private String speakerEmail;
     private String speakerLanguage;
     private String cospeakers;
     private String mean;
     private String voters;
+    private Map<String, Integer> rates;
+    private Map<String, String> comments;
 
     public Session(String name,
                    String language,
@@ -25,7 +29,7 @@ public class Session {
                    String track,
                    String description,
                    String references,
-                   String difficulty,
+                   Integer difficulty,
                    String speakerName,
                    String speakerEmail,
                    String speakerLanguage,
@@ -95,11 +99,11 @@ public class Session {
         this.references = references;
     }
 
-    public String getDifficulty() {
+    public Integer getDifficulty() {
         return difficulty;
     }
 
-    public void setDifficulty(String difficulty) {
+    public void setDifficulty(Integer difficulty) {
         this.difficulty = difficulty;
     }
 
@@ -153,5 +157,21 @@ public class Session {
 
     public String getVoters() {
         return voters;
+    }
+
+    public void setRates(Map<String, Integer> rates) {
+        this.rates = rates;
+    }
+
+    public Map<String, Integer> getRates() {
+        return rates;
+    }
+
+    public void setComments(Map<String, String> comments) {
+        this.comments = comments;
+    }
+
+    public Map<String, String> getComments() {
+        return comments;
     }
 }
