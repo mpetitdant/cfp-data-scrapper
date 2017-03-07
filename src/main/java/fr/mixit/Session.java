@@ -19,9 +19,8 @@ public class Session {
     private String speakerLanguage;
     private String cospeakers;
     private String mean;
-    private String voters;
     private Map<String, Integer> rates;
-    private Map<String, String> comments;
+    private String comments;
 
     public Session(String name,
                    String language,
@@ -151,14 +150,6 @@ public class Session {
         this.name = name;
     }
 
-    public void setVoters(String voters) {
-        this.voters = voters;
-    }
-
-    public String getVoters() {
-        return voters;
-    }
-
     public void setRates(Map<String, Integer> rates) {
         this.rates = rates;
     }
@@ -167,11 +158,11 @@ public class Session {
         return rates;
     }
 
-    public void setComments(Map<String, String> comments) {
+    public void setComments( String comments) {
         this.comments = comments;
     }
 
-    public Map<String, String> getComments() {
+    public String getComments() {
         return comments;
     }
 }

@@ -45,6 +45,7 @@ public class Main {
         apiToken = args[0];
 
         Map<Integer, Map<String, Integer>> rates = toRatesTable(scrap("rates", API_RATES));
+        Map<String, Integer> voters = extractVotersEmails(rates);
 
         Map<Integer, String> tracks = getTracks(scrap("tracks", API_TRACKS));
         Map<Integer, String> formats = getFormats(scrap("formats", API_FORMATS));
@@ -59,7 +60,28 @@ public class Main {
             completeSession(s, sessionJson, sessionCommentsJson, rates.get(id), tracks, formats);
         }
 
-        exportAsCSV("cfp", sessions, tracks, formats);
+        exportAsCSV("cfp", sessions, tracks, formats, voters);
+    }
+
+    private static Map<String, Integer> extractVotersEmails(Map<Integer, Map<String, Integer>> rates) {
+       Map<String, Integer> result = new HashMap<>();
+
+        for (Integer integer : rates.keySet()) {
+            Map<String, Integer> stringIntegerMap = rates.get(integer);
+            for (String email : stringIntegerMap.keySet()) {
+                Integer count = result.get(email);
+
+                if (count == null) {
+                    count = 0;
+                }
+                count += 1;
+
+                result.put(email, count);
+            }
+        }
+
+
+        return result;
     }
 
     private static Map<Integer, Map<String, Integer>> toRatesTable(String ratesStr) throws IOException {
@@ -99,14 +121,6 @@ public class Main {
         for (JsonNode elem : rootNode) {
             Session session = new Session();
             session.setMean(elem.get("mean").asText());
-
-            String voters = StreamSupport.stream(
-                    Spliterators.spliteratorUnknownSize(elem.get("voteUsersEmail").getElements(), Spliterator.ORDERED),
-                    false)
-                    .map(JsonNode::getTextValue)
-                    .collect(Collectors.joining(", "));
-            session.setVoters(voters);
-
             result.put(elem.get("id").getIntValue(), session);
         }
 
@@ -141,21 +155,22 @@ public class Main {
         session.setCospeakers(cospeakerEmail);
     }
 
-    private static Map<String, String> commentsToString(String sessionCommentsJson) throws IOException {
+    private static String commentsToString(String sessionCommentsJson) throws IOException {
         //  email
-        Map<String, String> commentsByUser = new HashMap<>();
+        String commentsStr = "";
 
         JsonNode comments = mapper.readValue(sessionCommentsJson, JsonNode.class);
         Iterator<JsonNode> jsonNodeIterator = comments.getElements();
         while (jsonNodeIterator.hasNext()) {
             JsonNode jsonNode = jsonNodeIterator.next();
 
-            commentsByUser.put(
-                    jsonNode.get("user").get("email").getTextValue(),
-                    jsonNode.get("comment").getTextValue());
+            commentsStr += jsonNode.get("user").get("email").getTextValue() +
+                    ": " +
+                    jsonNode.get("comment").getTextValue() +
+                    "\n";
         }
 
-        return commentsByUser;
+        return commentsStr;
     }
 
 
@@ -213,14 +228,28 @@ public class Main {
     }
 
 
-    private static void exportAsCSV(String filename, Map<Integer, Session> sessions, Map<Integer, String> tracks, Map<Integer, String> formats) throws IOException {
+    private static void exportAsCSV(String filename, Map<Integer, Session> sessions, Map<Integer, String> tracks, Map<Integer, String> formats, Map<String, Integer> voters) throws IOException {
         CSVWriter writer = new CSVWriter(new FileWriter(SCRAPED_FOLDER + filename + ".csv"), '\t');
 
+        List<String> orderedVotersEmails = voters.keySet().stream().collect(Collectors.toList());
 
-        String[] entries = {"id", "name", "language", "format", "track", "description",
-                "references", "difficulty", "speakerName", "speakerEmail",
-                "speakerLanguage", "cospeakers", "mean", "voters"};
-        writer.writeNext(entries);
+        List<String> entries = new ArrayList<>();
+        entries.add("id");
+        entries.add( "name");
+        entries.add( "language");
+        entries.add("format");
+        entries.add( "track");
+        entries.add( "description");
+        entries.add("references");
+        entries.add("difficulty");
+        entries.add("speakerName");
+        entries.add("speakerEmail");
+        entries.add("speakerLanguage");
+        entries.add("cospeakers");
+        entries.add( "mean");
+        entries.add("comments");
+        entries.addAll(orderedVotersEmails);
+        writer.writeNext(entries.toArray(new String[entries.size()]));
 
         sessions.keySet().stream()
                 .sorted(Comparator.naturalOrder())
@@ -228,22 +257,28 @@ public class Main {
                 .forEach(key ->
                         {
                             Session s = sessions.get(key);
-                            String[] nextLine =
-                                    {key + "",
-                                            s.getName(),
-                                            s.getLanguage(),
-                                            s.getFormat(),
-                                            s.getTrack(),
-                                            s.getDescription(),
-                                            s.getReferences(),
-                                            s.getDifficulty().toString(),
-                                            s.getSpeakerName(),
-                                            s.getSpeakerEmail(),
-                                            s.getSpeakerLanguage(),
-                                            s.getCospeakers(),
-                                            s.getMean(),
-                                            s.getVoters()};
-                            writer.writeNext(nextLine);
+
+                            List<String> nextLine = new ArrayList<>();
+                            nextLine.add(key + "");
+                            nextLine.add(s.getName());
+                            nextLine.add( s.getLanguage());
+                            nextLine.add( s.getFormat());
+                            nextLine.add(s.getTrack());
+                            nextLine.add( s.getDescription());
+                            nextLine.add(s.getReferences());
+                            nextLine.add(s.getDifficulty().toString());
+                            nextLine.add(s.getSpeakerName());
+                            nextLine.add(s.getSpeakerEmail());
+                            nextLine.add(s.getSpeakerLanguage());
+                            nextLine.add(s.getCospeakers());
+                            nextLine.add(s.getMean());
+                            nextLine.add(s.getComments());
+
+                            for (String voterEmail : orderedVotersEmails) {
+                                nextLine.add(s.getRates().get(voterEmail)+"");
+                            }
+
+                            writer.writeNext(nextLine.toArray(new String[nextLine.size()]));
                         }
 
                 );
